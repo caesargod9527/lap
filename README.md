@@ -2,5 +2,3 @@
 ---
   *脚本搬运请指明出处, 脚本使用纯属以学习为目的❤️, 如有违规, 请联系我删除*
 ---
-### *Star History Chart*
-[![Star History Chart](https://api.star-history.com/svg?repos=yuheng0101/X&type=Date)](https://star-history.com/#yuheng0101/X&Date)
