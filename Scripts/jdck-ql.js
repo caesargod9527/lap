@@ -1,5 +1,5 @@
 /******************************************
- * @name 获取京东 COOKIE 同步青龙
+ * @name 获取京东 COOKIE 同步11青龙
  * @channel https://t.me/yqc_123
  * @feedback https://t.me/yqc_777
  * @version 1.0.1
