@@ -6,6 +6,46 @@
   "repo": "https://github.com/Yuheng0101/X",
   "apps": [
     {
+      "id": "yuheng.moyu",
+      "name": "摸鱼",
+      "descs_html": [
+        "<p style='margin-left:20px;'>添加自定义节日参考配置: </p>",
+        "<p style='margin-left:20px;'><节日1>&<节日2>&节日名称:(YYYY年)?MM月DD日($农历)?&...</p>",
+        "<p style='margin-left:20px;'>例子: </p>",
+        "<p style='margin-left:20px;'><元宵节>&<清明节>&<劳动节>&<端午节>&<中秋节>&<国庆节>&<元旦>&<春节>&结婚纪念日:2月27日&老婆生日:2月16日$农历</p>",
+        "<p style='margin-left:20px;color:#ff0000;font-weight:900;font-size:30px;'>不懂请不要乱动! </p>"
+      ],
+      "keys": [
+        "moyu_remind_days",
+        "moyu_festival_conf"
+      ],
+      "settings": [
+        {
+          "id": "moyu_remind_days",
+          "name": "距离多少天提醒",
+          "val": 100,
+          "type": "text",
+          "rows": 1,
+          "desc": "比如默认100天, 超过100天的节日不通知"
+        },
+        {
+          "id": "moyu_festival_conf",
+          "name": "节日配置",
+          "val": "<元宵节>&<清明节>&<劳动节>&<端午节>&<中秋节>&<国庆节>&<元旦>&<春节>",
+          "type": "textarea",
+          "rows": 10,
+          "desc": "自定义规范: <节日1>&<节日2>&节日名称:(YYYY年)?MM月DD日($农历)?&..."
+        }
+      ],
+      "author": "@yuheng",
+      "repo": "https://github.com/Yuheng0101/X",
+      "icons": [
+        "https://is1-ssl.mzstatic.com/image/thumb/Purple126/v4/67/04/ff/6704ff4c-b49b-de91-70ac-201c62d5296f/AppIcon-0-0-1x_U007emarketing-0-0-0-5-0-0-sRGB-0-0-0-GLES2_U002c0-512MB-85-220-0-0.png/144x144bb.png",
+        "https://is1-ssl.mzstatic.com/image/thumb/Purple126/v4/67/04/ff/6704ff4c-b49b-de91-70ac-201c62d5296f/AppIcon-0-0-1x_U007emarketing-0-0-0-5-0-0-sRGB-0-0-0-GLES2_U002c0-512MB-85-220-0-0.png/144x144bb.png"
+      ],
+      "script": "https://raw.githubusercontent.com/Yuheng0101/X/main/Tasks/moyu.js"
+    },
+    {
       "id": "yuheng.mi.step",
       "name": "小米刷步",
       "descs_html": [
