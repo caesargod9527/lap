@@ -1,18 +1,25 @@
 /******************************************
- * @name 小米刷🚶‍
+ * @name 小米刷步
  * @channel https://t.me/yqc_123/
  * @feedback https://t.me/yqc_777/
  * @author 𝒀𝒖𝒉𝒆𝒏𝒈
  * @update 20240228
- * @version 1.1.0
+ * @version 1.1.1
 ******************************************
+## 更新日志
+
+### 20240228
+    优化通知
+    适配NodeJS/Surge/Loon
+    新增区间自定义步数
+
 🙇https://raw.githubusercontent.com/577fkj/mimotion/main/main.py
 ### 前言
     * 📝一次对BoxJS持久化的尝试
     * 🔗使用脚本前请先添加本脚本的BoxJS订阅 ➡️ https://raw.githubusercontent.com/Yuheng0101/X/main/Tasks/boxjs.json
     * 🔍一次对工具网络请求的调试(仅对Quantumult X可阻止重定向, 其他代理工具请自测, 亦或私信我告知其阻止重定向的方法)
     * 20240228已更新支持tf版LOON和Surge, 相信在不久后会上新正式版
-    * 📌使用脚本前请先配置好小米账号(手机号)和密码
+    * 📌使用脚本前请先配置好小米账号和密码
     * ⚠️ 脚本使用与作者无关，切勿将其用于商业用途❌，转载请注明出处✔️
 ```js
 [task_local]
@@ -20,14 +27,18 @@
 33 8 * * * https://raw.githubusercontent.com/Yuheng0101/X/main/Tasks/mi/step.js, tag=小米刷步, img-url=https://raw.githubusercontent.com/Yuheng0101/X/main/Tasks/mi/color.png, enabled=true
 ```
 ******************************************/
-var $ = new Env('小米刷步🚶‍'),
+var $ = new Env('小米刷步'),
     service = $.http,
-    qs = new querystring()
+    qs = new querystring(),
+    useSpace = false // 是否使用区间
+const random = (min, max) => Math.floor(Math.random() * (max - min + 1) + min)
 // 配置参数
-var is_debug = $.getdata('xiaomi_step_debug') || true, // 是否调试状态
-    username = $.getdata('xiaomi_step_username') || '',
-    password = $.getdata('xiaomi_step_password') || '',
-    step = $.getdata('xiaomi_step_step') || Math.floor(Math.random() * 10000 + 10000)
+var is_debug = ($.isNode() ? process.env.XIAOMI_STEP_DEBUG : $.getdata('xiaomi_step_debug')) || true, // 是否调试状态
+    username = ($.isNode() ? process.env.XIAOMI_STEP_USERNAME : $.getdata('xiaomi_step_username')) || '',
+    password = ($.isNode() ? process.env.XIAOMI_STEP_PASSWORD : $.getdata('xiaomi_step_password')) || '',
+    space = ($.isNode() ? process.env.XIAOMI_STEP_SPACE : $.getdata('xiaomi_step_space')) || '10000-19999', // 区间: 使用-分隔
+    step = ($.isNode() ? process.env.XIAOMI_STEP_STEP : $.getdata('xiaomi_step_step')) || 0 // 步数: 0为随机
+step == 0 && ((step = random(...space.split('-').map((i) => parseInt(i)))), (useSpace = true))
 // 执行
 !(async () => {
     if (!username || !password) throw new Error('❌请先配置小米账号(手机号)和密码')
@@ -36,7 +47,12 @@ var is_debug = $.getdata('xiaomi_step_debug') || true, // 是否调试状态
     var { loginToken, userId } = await xiaomi.doLogin(code)
     var appToken = await xiaomi.getAppToken(loginToken)
     await xiaomi.doStep(appToken, userId)
-    $.msg($.name, `🎉刷步成功🎉`, `今日步数🚶🚶🚶‍: ${step}`)
+    const user = username.slice(0, 3) + '****' + username.slice(-4) // 脱敏
+    let content = `登录账号: ${user}`
+    useSpace && (content += `\n设置区间: ${space}步`)
+    content += `\n运行时间: ${$.time('yyyy-MM-dd HH:mm:ss')}`
+    content += `\n执行结果: 成功修改步数${step}步`
+    await SendNotify($.name, '', content)
 })()
     .catch((e) => $.log('', `❗️${$.name}, 错误!`, e))
     .finally(() => $.done())
@@ -87,7 +103,7 @@ function Xiaomi(user, pwd) {
                               country_code: 'CN'
                           }
                 ),
-                'auto-redirect': false, // Loon 是否自动处理重定向，默认true（build 660+） Surge 仅这支持5.21.0(3052)之后的版本
+                'auto-redirect': false, // Loon 是否自动处理重定向，默认true（build 660+）
                 followRedirect: false, // NodeJS禁止重定向
                 opts: {
                     redirection: false // 圈X禁止重定向
@@ -184,6 +200,57 @@ function Xiaomi(user, pwd) {
             }
         }
     })(user, pwd)
+}
+/**
+ * 通用通知
+ * 兼容Node.js/Quantumult X/Surge/Loon/Shadowrocket
+ * @param {*} title 标题
+ * @param {*} subtitle 副标题
+ * @param {*} content 内容
+ * @param {*} options 附加参数
+ */
+async function SendNotify(title, subtitle = '', content = '', options = {}) {
+    // --------------------------------------------------
+    const isJSBox = typeof $app !== 'undefined' && typeof $http !== 'undefined'
+    // --------------------------------------------------
+    const openURL = options['open-url']
+    const mediaURL = options['media-url']
+
+    if ($.isQuanX()) {
+        $notify(title, subtitle, content, options)
+    }
+    if ($.isSurge()) {
+        const contentWithMedia = mediaURL ? `${content}\n多媒体:${mediaURL}` : content
+        $notification.post(title, subtitle, contentWithMedia, { url: openURL })
+    }
+    if ($.isLoon()) {
+        const opts = {}
+        if (openURL) opts['openUrl'] = openURL
+        if (mediaURL) opts['mediaUrl'] = mediaURL
+        if (JSON.stringify(opts) === '{}') {
+            $notification.post(title, subtitle, content)
+        } else {
+            $notification.post(title, subtitle, content, opts)
+        }
+    }
+    const content_ = `${content}${openURL ? `\n点击跳转: ${openURL}` : ''}${mediaURL ? `\n多媒体: ${mediaURL}` : ''}`
+    if (isJSBox) {
+        const push = require('push')
+        push.schedule({
+            title,
+            body: `${subtitle ? `${subtitle}\n` : ''}${content_}`
+        })
+    }
+    if ($.isNode()) {
+        try {
+            // 请注意, 这里需要配置你自己的sendNotify.js文件位置
+            const notify = require('./sendNotify')
+            await notify.sendNotify(`${title}\n${subtitle}`, content_)
+        } catch (e) {
+            console.log('没有找到sendNotify.js文件')
+        }
+    }
+    console.log(`${title}\n${subtitle}\n${content_}\n\n`)
 }
 // prettier-ignore
 function querystring(){return new class{constructor(){}parse(ele,con_1,con_2){con_1=con_1||"&",con_2=con_2||"=";for(var temp=ele.split(con_1),obj={},n=temp.length,i=0;i<n;i++){var tempKey=temp[i].split(con_2);obj[tempKey[0]]=tempKey[1]}return obj}stringify(ele,con_1,con_2){con_1=con_1||"&",con_2=con_2||"=";var str="";for(var key in ele)str+=key+con_2+ele[key]+con_1;return str=str.substr(0,str.length-1)}escape(str){return encodeURIComponent(str)}unescape(str){return decodeURIComponent(str)}}}

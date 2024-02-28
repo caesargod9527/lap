@@ -2,9 +2,13 @@
  * @name 摸鱼来啦~
  * @channel https://t.me/yqc_123
  * @feedback https://t.me/yqc_777
- * @version 1.1.0
+ * @version 1.1.1
 ******************************************
 ## 更新日志
+
+### 20240228
+    新增媒体图片自定义(自行更新BoxJS并修改), 不填默认随机
+    新增自定义规则,可同一个日期同时显示阳历|阴历倒计时
 
 ### 20240227
     新增自定义节日配置
@@ -49,8 +53,10 @@ const Month = Now.getMonth() + 1
 const Today = Now.getDate()
 // ----------------------------------
 // 配置项
+// 用户自定义通知图片
+$.CUSTOM_NOTIFY_IMG = ($.isNode() ? process.env.MOYU_CUSTOM_NOTIFY_IMG : $.getdata('moyu_custom_notify_img')) || ''
 $.REMIND_DAYS = ($.isNode() ? process.env.MOYU_REMIND_DAYS : $.getdata('moyu_remind_days')) || 100
-// 自定义规范: <节日1>&<节日2>&节日名称:(YYYY年)?MM月DD日($农历)?&...
+// 自定义规范: <节日1>&<节日2>&节日名称:(YYYY年)?MM月DD日($农历)($阳历)?&...
 const festivalConfig =
     ($.isNode() ? process.env.MOYU_FESTIVAL_CONF : $.getdata('moyu_festival_conf')) ||
     '<元宵节>&<清明节>&<劳动节>&<端午节>&<中秋节>&<国庆节>&<元旦>&<春节>'
@@ -119,13 +125,26 @@ const festivalMap = festivalConfig
             }
         } else {
             let [name, date] = it.split(':')
-            const isLunar = date.includes('$农历')
-            date = getDateStr(date.replace('$农历', ''), Year)
-            if (isLunar) {
+            const hasLunar = date.includes('$农历')
+            const hasSolar = date.includes('$阳历')
+            // 不填$农历$阳历或者填了$阳历 则返回阳历日期
+            if ((!hasLunar && !hasSolar) || (!hasLunar && hasSolar)) {
+                date = getDateStr(date.replace('$阳历', ''), Year)
+                return [name, date]
+            }
+            // 只有$农历 则返回农历日期
+            if (hasLunar && !hasSolar) {
+                date = getDateStr(date.replace('$农历', ''), Year)
                 const [y, m, d] = date.split('/').map(Number)
                 return [name, Lunar2Solar(y, m, d)]
-            } else {
-                return [name, date]
+            }
+            // 既有$农历又有$阳历 这里要判断哪个在前，返回在前的日期类型
+            if (hasLunar && hasSolar) {
+                const reg = /\$(农历|阳历)\$(农历|阳历)/
+                const isLunar = date.match(reg)[1] === '农历'
+                date = getDateStr(date.replace(reg, ''), Year)
+                const [y, m, d] = date.split('/').map(Number)
+                return [name, isLunar ? Lunar2Solar(y, m, d) : date]
             }
         }
     })
@@ -164,7 +183,7 @@ const notify = async () => {
     content += `\n【节】${detail}`
     // 发送通知
     await SendNotify(title, subTitle, content, {
-        'media-url': images[Math.floor(Math.random() * images.length)]
+        'media-url': $.CUSTOM_NOTIFY_IMG || images[Math.floor(Math.random() * images.length)]
     })
 }
 /** 阴历转阳历 */
