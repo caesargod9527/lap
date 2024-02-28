@@ -37,15 +37,15 @@ var is_debug = ($.isNode() ? process.env.XIAOMI_STEP_DEBUG : $.getdata('xiaomi_s
     usernames = ($.isNode() ? process.env.XIAOMI_STEP_USERNAME : $.getdata('xiaomi_step_username')) || '', // 使用&&分割多账号
     passwords = ($.isNode() ? process.env.XIAOMI_STEP_PASSWORD : $.getdata('xiaomi_step_password')) || '', // 同上
     space = ($.isNode() ? process.env.XIAOMI_STEP_SPACE : $.getdata('xiaomi_step_space')) || '10000-19999', // 区间: 使用-分隔使用&进行分割，如果存在&则匹配每个账号
-    step = ($.isNode() ? process.env.XIAOMI_STEP_STEP : $.getdata('xiaomi_step_step')) || '' // 步数: 0为随机 // 使用&分割多账号, 不填使用随机区间
-const useSpace = step === ''
+    step = ($.isNode() ? process.env.XIAOMI_STEP_STEP : $.getdata('xiaomi_step_step')) || '' // 步数: 0/空为随机 // 使用&分割多账号, 不填使用随机区间
+const useSpace = step ? false : true
 // 执行
 !(async () => {
     if (!usernames || !passwords) throw new Error('❌请先配置小米账号(手机号)和密码')
     const userArr = usernames.split('&&')
     const pwdArr = passwords.split('&&')
     const spaceArr = space.split('&')
-    const stepArr = step.split('&')
+    const stepArr = step.split('&').filter(Boolean)
     if (userArr.length !== pwdArr.length) throw new Error('❌账号和密码数量不匹配, 请检查')
     if (spaceArr.length > 1 && spaceArr.length !== userArr.length) throw new Error('❌区间数量不匹配, 请检查')
     if (stepArr.length > 1 && stepArr.length !== userArr.length) throw new Error('❌步数数量不匹配, 请检查')
@@ -73,12 +73,12 @@ const useSpace = step === ''
             content += `\n❌账号: ${user} 任务执行失败\n${e}`
             continue
         }
-        content += `\n登录账号: ${user}`
+        content += `${i === 0 ? '' : '\n'}登录账号: ${user}`
         useSpace && (content += `\n设置区间: ${spaceArr.length > 1 ? spaceArr[i] : space}`)
         content += `\n运行时间: ${startTime}`
-        content += `\n执行结果: 成功修改步数${_step}步\n`
+        content += `\n执行结果: 成功修改步数${_step}步${i === userArr.length - 1 ? '' : '\n'}`
     }
-    await SendNotify($.name, '', content.replace(/\n$/, ''))
+    await SendNotify($.name, '', content)
 })()
     .catch((e) => $.log('', `❗️${$.name}, 错误!`, e))
     .finally(() => $.done())
