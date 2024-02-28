@@ -2,13 +2,14 @@
  * @name 摸鱼来啦~
  * @channel https://t.me/yqc_123
  * @feedback https://t.me/yqc_777
- * @version 1.1.1
+ * @version 1.1.2
 ******************************************
 ## 更新日志
 
 ### 20240228
     新增媒体图片自定义(自行更新BoxJS并修改), 不填默认随机
     新增自定义规则,可同一个日期同时显示阳历|阴历倒计时
+    当输入$农历$阳历或$阳历$农历时, 都会输出倒计时
 
 ### 20240227
     新增自定义节日配置
@@ -57,12 +58,13 @@ const Today = Now.getDate()
 $.CUSTOM_NOTIFY_IMG = ($.isNode() ? process.env.MOYU_CUSTOM_NOTIFY_IMG : $.getdata('moyu_custom_notify_img')) || ''
 $.REMIND_DAYS = ($.isNode() ? process.env.MOYU_REMIND_DAYS : $.getdata('moyu_remind_days')) || 100
 // 自定义规范: <节日1>&<节日2>&节日名称:(YYYY年)?MM月DD日($农历)($阳历)?&...
-const festivalConfig =
+$.FESTIVAL_CONF =
     ($.isNode() ? process.env.MOYU_FESTIVAL_CONF : $.getdata('moyu_festival_conf')) ||
     '<元宵节>&<清明节>&<劳动节>&<端午节>&<中秋节>&<国庆节>&<元旦>&<春节>'
 $.isRequest = () => typeof $request !== 'undefined'
 // prettier-ignore
 $.qs = {stringify(e,n,r,t){var o=function(e){switch(typeof e){case"string":return e;case"boolean":return e?"true":"false";case"number":return isFinite(e)?e:"";default:return""}};return n=n||"&",r=r||"=",null===e&&(e=void 0),"object"==typeof e?Object.keys(e).map(function(t){var a=encodeURIComponent(o(t))+r;return Array.isArray(e[t])?e[t].map(function(e){return a+encodeURIComponent(o(e))}).join(n):a+encodeURIComponent(o(e[t]))}).filter(Boolean).join(n):t?encodeURIComponent(o(t))+r+encodeURIComponent(o(e)):""},parse(e,n,r,t){function o(e,n){return Object.prototype.hasOwnProperty.call(e,n)}n=n||"&",r=r||"=";var a={};if("string"!=typeof e||0===e.length)return a;var s=/\+/g;e=e.split(n);var u=1e3;t&&"number"==typeof t.maxKeys&&(u=t.maxKeys);var i=e.length;u>0&&i>u&&(i=u);for(var c=0;c<i;++c){var p,f,y,l,m=e[c].replace(s,"%20"),d=m.indexOf(r);d>=0?(p=m.substr(0,d),f=m.substr(d+1)):(p=m,f=""),y=decodeURIComponent(p),l=decodeURIComponent(f),o(a,y)?Array.isArray(a[y])?a[y].push(l):a[y]=[a[y],l]:a[y]=l}return a}}
+$.festivalList = [] // 预留项
 /**
  * @1900-2100区间内的公历、农历互转
  * @charset UTF-8
@@ -114,14 +116,14 @@ const getDateStr = (dateStr, year) => {
     }
     return `${year}/${dateStr.replace(monthDayReg, '$1/$2')}`
 }
-const festivalMap = festivalConfig
-    .split('&')
+$.FESTIVAL_CONF.split('&')
     .map((it) => {
         const fixedFestivalMatch = it.match(fixedFestivalReg)
         if (fixedFestivalMatch) {
             const festival = fixedFestivalMatch[1]
             if (defaultFestivalMap.hasOwnProperty(festival)) {
-                return [festival, defaultFestivalMap[festival]]
+                // return [festival, defaultFestivalMap[festival]]
+                return { name: festival, date: defaultFestivalMap[festival] }
             }
         } else {
             let [name, date] = it.split(':')
@@ -130,32 +132,37 @@ const festivalMap = festivalConfig
             // 不填$农历$阳历或者填了$阳历 则返回阳历日期
             if ((!hasLunar && !hasSolar) || (!hasLunar && hasSolar)) {
                 date = getDateStr(date.replace('$阳历', ''), Year)
-                return [name, date]
+                return { name, date }
             }
             // 只有$农历 则返回农历日期
             if (hasLunar && !hasSolar) {
                 date = getDateStr(date.replace('$农历', ''), Year)
                 const [y, m, d] = date.split('/').map(Number)
-                return [name, Lunar2Solar(y, m, d)]
+                return { name, lunar: Lunar2Solar(y, m, d) }
             }
             // 既有$农历又有$阳历 这里要判断哪个在前，返回在前的日期类型
             if (hasLunar && hasSolar) {
                 const reg = /\$(农历|阳历)\$(农历|阳历)/
-                const isLunar = date.match(reg)[1] === '农历'
                 date = getDateStr(date.replace(reg, ''), Year)
                 const [y, m, d] = date.split('/').map(Number)
-                return [name, isLunar ? Lunar2Solar(y, m, d) : date]
+                return {
+                    name,
+                    lunar: Lunar2Solar(y, m, d),
+                    date: `${y}/${m}/${d}`
+                }
             }
         }
     })
-    .reduce((acc, cur) => {
-        acc[cur[0]] = cur[1]
-        return acc
-    }, {})
+    .forEach(
+        (item) => (
+            item?.lunar && $.festivalList.push({ name: item.name, date: item.lunar, diff: getDiffDays(item.lunar) }),
+            item?.date && $.festivalList.push({ name: item.name, date: item.date, diff: getDiffDays(item.date) })
+        )
+    )
 // ----------------------------------
 /** 通知  */
 const notify = async () => {
-    const festivalList = Object.entries(festivalMap).sort((a, b) => getDiffDays(a[1]) - getDiffDays(b[1])) // 重新排序
+    const festivalList = $.festivalList.sort((a, b) => a.diff - b.diff)
     // 黄历输出
     const almanac = await getTodayAlmanac()
     const title = `【${$.time('MM月dd日')} ${almanac.lunar} ${getWeekDay()}】`
@@ -164,7 +171,7 @@ const notify = async () => {
     const weekendDays = getWeekendDays()
     let content = weekendDays === 0 ? '今天是周末, 有时间多陪陪家人哦~' : `距离周末还有${weekendDays}天`
     // 节日提醒
-    festivalList.forEach(([festival, date]) => {
+    festivalList.forEach(({ name: festival, date }) => {
         const diffDays = getDiffDays(date)
         if (Today === new Date(date).getDate()) {
             content += `\n🎉${festival}快乐`
