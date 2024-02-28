@@ -12,6 +12,7 @@
     优化通知
     适配NodeJS/Surge/Loon
     新增区间自定义步数
+    新增多账号适配(具体配置移动到BoxJS查看)
 
 🙇https://raw.githubusercontent.com/577fkj/mimotion/main/main.py
 ### 前言
@@ -29,39 +30,65 @@
 ******************************************/
 var $ = new Env('小米刷步'),
     service = $.http,
-    qs = new querystring(),
-    useSpace = false // 是否使用区间
+    qs = new querystring()
 const random = (min, max) => Math.floor(Math.random() * (max - min + 1) + min)
 // 配置参数
-var is_debug = ($.isNode() ? process.env.XIAOMI_STEP_DEBUG : $.getdata('xiaomi_step_debug')) || true, // 是否调试状态
-    username = ($.isNode() ? process.env.XIAOMI_STEP_USERNAME : $.getdata('xiaomi_step_username')) || '',
-    password = ($.isNode() ? process.env.XIAOMI_STEP_PASSWORD : $.getdata('xiaomi_step_password')) || '',
-    space = ($.isNode() ? process.env.XIAOMI_STEP_SPACE : $.getdata('xiaomi_step_space')) || '10000-19999', // 区间: 使用-分隔
-    step = ($.isNode() ? process.env.XIAOMI_STEP_STEP : $.getdata('xiaomi_step_step')) || 0 // 步数: 0为随机
-step == 0 && ((step = random(...space.split('-').map((i) => parseInt(i)))), (useSpace = true))
+var is_debug = ($.isNode() ? process.env.XIAOMI_STEP_DEBUG : $.getdata('xiaomi_step_debug')) || false, // 是否调试状态
+    usernames = ($.isNode() ? process.env.XIAOMI_STEP_USERNAME : $.getdata('xiaomi_step_username')) || '', // 使用&&分割多账号
+    passwords = ($.isNode() ? process.env.XIAOMI_STEP_PASSWORD : $.getdata('xiaomi_step_password')) || '', // 同上
+    space = ($.isNode() ? process.env.XIAOMI_STEP_SPACE : $.getdata('xiaomi_step_space')) || '10000-19999', // 区间: 使用-分隔使用&进行分割，如果存在&则匹配每个账号
+    step = ($.isNode() ? process.env.XIAOMI_STEP_STEP : $.getdata('xiaomi_step_step')) || '' // 步数: 0为随机 // 使用&分割多账号, 不填使用随机区间
+const useSpace = step === ''
 // 执行
 !(async () => {
-    if (!username || !password) throw new Error('❌请先配置小米账号(手机号)和密码')
-    var xiaomi = new Xiaomi(username, password)
-    var code = await xiaomi.getCode()
-    var { loginToken, userId } = await xiaomi.doLogin(code)
-    var appToken = await xiaomi.getAppToken(loginToken)
-    await xiaomi.doStep(appToken, userId)
-    const user = username.slice(0, 3) + '****' + username.slice(-4) // 脱敏
-    let content = `登录账号: ${user}`
-    useSpace && (content += `\n设置区间: ${space}步`)
-    content += `\n运行时间: ${$.time('yyyy-MM-dd HH:mm:ss')}`
-    content += `\n执行结果: 成功修改步数${step}步`
-    await SendNotify($.name, '', content)
+    if (!usernames || !passwords) throw new Error('❌请先配置小米账号(手机号)和密码')
+    const userArr = usernames.split('&&')
+    const pwdArr = passwords.split('&&')
+    const spaceArr = space.split('&')
+    const stepArr = step.split('&')
+    if (userArr.length !== pwdArr.length) throw new Error('❌账号和密码数量不匹配, 请检查')
+    if (spaceArr.length > 1 && spaceArr.length !== userArr.length) throw new Error('❌区间数量不匹配, 请检查')
+    if (stepArr.length > 1 && stepArr.length !== userArr.length) throw new Error('❌步数数量不匹配, 请检查')
+    let content = ''
+    for (let i = 0; i < userArr.length; i++) {
+        let _step
+        if (spaceArr.length > 1) {
+            _step = useSpace ? random(...spaceArr[i].split('-').map((i) => parseInt(i))) : stepArr.length > 1 ? stepArr[i] : stepArr[0]
+        } else {
+            _step = useSpace ? random(...space.split('-').map((i) => parseInt(i))) : stepArr.length > 1 ? stepArr[i] : stepArr[0]
+        }
+        is_debug && console.log(`步数: ${_step}`)
+        const startTime = $.time('yyyy-MM-dd HH:mm:ss', Date.now())
+        is_debug && console.log(`当前时间: ${startTime}`)
+        const username = userArr[i]
+        const password = pwdArr[i]
+        const user = username.slice(0, 3) + '****' + username.slice(-4) // 脱敏
+        try {
+            var xiaomi = new Xiaomi(username, password, _step)
+            var code = await xiaomi.getCode()
+            var { loginToken, userId } = await xiaomi.doLogin(code)
+            var appToken = await xiaomi.getAppToken(loginToken)
+            await xiaomi.doStep(appToken, userId)
+        } catch (e) {
+            content += `\n❌账号: ${user} 任务执行失败\n${e}`
+            continue
+        }
+        content += `\n登录账号: ${user}`
+        useSpace && (content += `\n设置区间: ${spaceArr.length > 1 ? spaceArr[i] : space}`)
+        content += `\n运行时间: ${startTime}`
+        content += `\n执行结果: 成功修改步数${_step}步\n`
+    }
+    await SendNotify($.name, '', content.replace(/\n$/, ''))
 })()
     .catch((e) => $.log('', `❗️${$.name}, 错误!`, e))
     .finally(() => $.done())
 // 工具类
-function Xiaomi(user, pwd) {
+function Xiaomi(user, pwd, step) {
     return new (class {
         constructor(user, pwd) {
             this.username = user
             this.password = pwd
+            this.step = Number(step)
             this.headers = {
                 'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 9; MI 6 MIUI/20.6.18)'
             }
@@ -103,7 +130,7 @@ function Xiaomi(user, pwd) {
                               country_code: 'CN'
                           }
                 ),
-                'auto-redirect': false, // Loon 是否自动处理重定向，默认true（build 660+）
+                'auto-redirect': false, // Loon 是否自动处理重定向，默认true（build 660+）,Surge (5.21.0(3052))
                 followRedirect: false, // NodeJS禁止重定向
                 opts: {
                     redirection: false // 圈X禁止重定向
@@ -173,7 +200,7 @@ function Xiaomi(user, pwd) {
             var today = $.time('yyyy-MM-dd')
             dataJson.date = today
             // prettier-ignore
-            dataJson.summary = dataJson.summary.replace(/ttl\":(.*?),\"dis/, `ttl\":${step},\"dis`)
+            dataJson.summary = dataJson.summary.replace(/ttl\":(.*?),\"dis/, `ttl\":${this.step},\"dis`)
             var dataStr = qs.escape(JSON.stringify([dataJson]))
             var options = {
                 url: `https://api-mifit-cn.huami.com/v1/data/band_data.json?&t=${_ts}`,
