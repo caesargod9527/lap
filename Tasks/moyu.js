@@ -171,9 +171,8 @@ const notify = async () => {
     const weekendDays = getWeekendDays()
     let content = weekendDays === 0 ? '今天是周末, 有时间多陪陪家人哦~' : `距离周末还有${weekendDays}天`
     // 节日提醒
-    festivalList.forEach(({ name: festival, date }) => {
-        const diffDays = getDiffDays(date)
-        if (Today === new Date(date).getDate()) {
+    festivalList.forEach(({ name: festival, date, diff: diffDays }) => {
+        if (Today === new Date(date).getDate() && diffDays === 0) {
             content += `\n🎉${festival}快乐`
         } else if (diffDays > 0 && diffDays <= $.REMIND_DAYS) {
             content += `\n距离${festival}还有${diffDays}天`
