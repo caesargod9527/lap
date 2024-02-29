@@ -16,11 +16,27 @@
         "<p style='margin-left:20px;color:#ff0000;font-weight:900;font-size:30px;'>不懂请不要乱动! </p>"
       ],
       "keys": [
+        "moyu_show_lunar",
+        "moyu_show_almanac",
         "moyu_custom_notify_img",
         "moyu_remind_days",
         "moyu_festival_conf"
       ],
       "settings": [
+        {
+          "id": "moyu_show_lunar",
+          "name": "当传入日期为阳历时, 是否展示农历",
+          "val": false,
+          "type": "boolean",
+          "desc": "比如老婆生日:3月15日, 如果勾选, 通知时会带上距离农历还有xx天"
+        },
+        {
+          "id": "moyu_show_almanac",
+          "name": "是否展示黄历",
+          "val": true,
+          "type": "boolean",
+          "desc": "顾名思义"
+        },
         {
           "id": "moyu_custom_notify_img",
           "name": "🔗通知图片(链接)",
@@ -55,10 +71,10 @@
       "script": "https://raw.githubusercontent.com/Yuheng0101/X/main/Tasks/moyu.js"
     },
     {
-      "id": "yuheng.mi.step1",
+      "id": "yuheng.mi.step",
       "name": "小米刷步",
       "descs_html": [
-        "<ol><li>每天刷一刷</li><li>健康第一</li><li>步数第二</li></ol>",
+        "<p style='margin-top:20px;font-size:16px;color:#a29bfe;text-align:center;'>刷步格言: 每天刷一刷, 健康第一, 步数第二</p>",
         "<p style='margin-left:10px;margin-top:30px;font-size:20px;font-weight:900;'>如需配置多账号务必看完以下说明<p>",
         "<p style='margin-left:10px;margin-top:20px;font-size:12px;'>账密使用&&分割, 如果密码存在&&请先修改密码后再使用该脚本, 账密长度务必保持一致</p>",
         "<p style='margin-left:10px;margin-top:20px;font-size:12px;'>区间和步数使用&进行分割, 如果不分割使用第一个作为统一配置, 如10000-19999, 即表示不管多少账号都使用这一区间, 如果使用多账号区间, 务必长度与账密保持一致</p>",
