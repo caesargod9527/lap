@@ -3,10 +3,14 @@
  * @channel https://t.me/yqc_123/
  * @feedback https://t.me/yqc_777/
  * @author 𝒀𝒖𝒉𝒆𝒏𝒈
- * @update 20240228
- * @version 1.1.1
+ * @update 20240229
+ * @version 1.1.3
 ******************************************
 ## 更新日志
+
+### 20240229
+    重构代码
+    支持邮箱登录
 
 ### 20240228
     优化通知
@@ -28,17 +32,21 @@
 33 8 * * * https://raw.githubusercontent.com/Yuheng0101/X/main/Tasks/mi/step.js, tag=小米刷步, img-url=https://raw.githubusercontent.com/Yuheng0101/X/main/Tasks/mi/color.png, enabled=true
 ```
 ******************************************/
-var $ = new Env('小米刷步'),
-    service = $.http,
-    qs = new querystring()
+const $ = new Env('小米刷步')
+$.isTrue = (val) => val === 'true' || val === true
+// prettier-ignore
+$.qs = {parse(ele,con_1,con_2){con_1=con_1||"&",con_2=con_2||"=";for(var temp=ele.split(con_1),obj={},n=temp.length,i=0;i<n;i++){var tempKey=temp[i].split(con_2);obj[tempKey[0]]=tempKey[1]}return obj},stringify(ele,con_1,con_2){con_1=con_1||"&",con_2=con_2||"=";var str="";for(var key in ele)str+=key+con_2+ele[key]+con_1;return str=str.substr(0,str.length-1)},escape(str){return encodeURIComponent(str)},unescape(str){return decodeURIComponent(str)}}
 const random = (min, max) => Math.floor(Math.random() * (max - min + 1) + min)
+const ObjectKeys2LowerCase = (obj) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k.toLowerCase(), v]))
+// ----------------------------------------
 // 配置参数
-var is_debug = ($.isNode() ? process.env.XIAOMI_STEP_DEBUG : $.getdata('xiaomi_step_debug')) || false, // 是否调试状态
-    usernames = ($.isNode() ? process.env.XIAOMI_STEP_USERNAME : $.getdata('xiaomi_step_username')) || '', // 使用&&分割多账号
-    passwords = ($.isNode() ? process.env.XIAOMI_STEP_PASSWORD : $.getdata('xiaomi_step_password')) || '', // 同上
-    space = ($.isNode() ? process.env.XIAOMI_STEP_SPACE : $.getdata('xiaomi_step_space')) || '10000-19999', // 区间: 使用-分隔使用&进行分割，如果存在&则匹配每个账号
-    step = ($.isNode() ? process.env.XIAOMI_STEP_STEP : $.getdata('xiaomi_step_step')) || '' // 步数: 0/空为随机 // 使用&分割多账号, 不填使用随机区间
-const useSpace = step ? false : true
+const is_debug = $.isTrue($.isNode() ? process.env.XIAOMI_STEP_DEBUG : $.getdata('xiaomi_step_debug')) // 是否调试状态
+const usernames = ($.isNode() ? process.env.XIAOMI_STEP_USERNAME : $.getdata('xiaomi_step_username')) || '' // 使用&&分割多账号
+const passwords = ($.isNode() ? process.env.XIAOMI_STEP_PASSWORD : $.getdata('xiaomi_step_password')) || '' // 同上
+const space = ($.isNode() ? process.env.XIAOMI_STEP_SPACE : $.getdata('xiaomi_step_space')) || '10000-19999' // 区间: 使用-分隔使用&进行分割，如果存在&则匹配每个账号
+const step = ($.isNode() ? process.env.XIAOMI_STEP_STEP : $.getdata('xiaomi_step_step')) || '' // 步数: 0/空为随机 // 使用&分割多账号, 不填使用随机区间
+const useSpace = step ? false : true // 是否使用区间
+// ----------------------------------------
 // 执行
 !(async () => {
     if (!usernames || !passwords) throw new Error('❌请先配置小米账号(手机号)和密码')
@@ -51,26 +59,26 @@ const useSpace = step ? false : true
     if (stepArr.length > 1 && stepArr.length !== userArr.length) throw new Error('❌步数数量不匹配, 请检查')
     let content = ''
     for (let i = 0; i < userArr.length; i++) {
-        let _step
-        if (spaceArr.length > 1) {
-            _step = useSpace ? random(...spaceArr[i].split('-').map((i) => parseInt(i))) : stepArr.length > 1 ? stepArr[i] : stepArr[0]
-        } else {
-            _step = useSpace ? random(...space.split('-').map((i) => parseInt(i))) : stepArr.length > 1 ? stepArr[i] : stepArr[0]
-        }
+        const sec = random(1000, 2000)
+        is_debug && i !== 0 && console.log(`随机等待${sec}毫秒`)
+        i !== 0 && (await $.wait(sec))
+        const range = spaceArr.length > 1 ? spaceArr[i] : space
+        const _step = useSpace ? random(...range.split('-').map((i) => parseInt(i))) : stepArr.length > 1 ? stepArr[i] : step
         is_debug && console.log(`步数: ${_step}`)
         const startTime = $.time('yyyy-MM-dd HH:mm:ss', Date.now())
         is_debug && console.log(`当前时间: ${startTime}`)
         const username = userArr[i]
         const password = pwdArr[i]
-        const user = username.slice(0, 3) + '****' + username.slice(-4) // 脱敏
+        const userType = username.includes('@') ? 'email' : 'phone'
+        const user = userType === 'phone' ? username.slice(0, 3) + '****' + username.slice(-4) : username.slice(0, 2) + '****' + username.slice(username.indexOf('@'))
         try {
-            var xiaomi = new Xiaomi(username, password, _step)
+            var xiaomi = new Xiaomi(username, password, _step, userType)
             var code = await xiaomi.getCode()
             var { loginToken, userId } = await xiaomi.doLogin(code)
             var appToken = await xiaomi.getAppToken(loginToken)
             await xiaomi.doStep(appToken, userId)
         } catch (e) {
-            content += `\n❌账号: ${user} 任务执行失败\n${e}`
+            content += `\n❌账号: ${username} 任务执行失败\n${e}`
             continue
         }
         content += `${i === 0 ? '' : '\n'}登录账号: ${user}`
@@ -82,38 +90,35 @@ const useSpace = step ? false : true
 })()
     .catch((e) => $.log('', `❗️${$.name}, 错误!`, e))
     .finally(() => $.done())
+// ----------------------------------------
 // 工具类
-function Xiaomi(user, pwd, step) {
+function Xiaomi(user, pwd, step, userType) {
     return new (class {
         constructor(user, pwd) {
             this.username = user
             this.password = pwd
             this.step = Number(step)
-            this.headers = {
-                'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 9; MI 6 MIUI/20.6.18)'
-            }
+            this.userType = userType
         }
         // 获取淘宝时间 -- success
         async getTimeByTaobao() {
-            var url = 'http://api.m.taobao.com/rest/api3.do?api=mtop.common.getTimestamp'
-            var { body: resp } = await service.get(url)
-            var {
+            const url = 'http://api.m.taobao.com/rest/api3.do?api=mtop.common.getTimestamp'
+            const {
                 data: { t: time }
-            } = JSON.parse(resp)
+            } = await fetchData(url)
             return time
         }
         // 登录参数 -- success
         async getCode() {
-            const isPhone = /^1\d{10}$/.test(this.username)
-            isPhone && (this.username = `+86${this.username}`)
-            var options = {
-                url: `https://api-user.huami.com/registrations/${this.username}/tokens`,
+            const username = this.userType === 'email' ? encodeURIComponent(this.username) : `+86${this.username}`
+            const options = {
+                url: `https://api-user.huami.com/registrations/${username}/tokens`,
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
                     'User-Agent': 'MiFit/4.6.0 (iPhone; iOS 14.0.1; Scale/2.00)'
                 },
-                body: qs.stringify(
-                    isPhone
+                type: 'post',
+                body:
+                    this.userType == 'phone'
                         ? {
                               client_id: 'HuaMi',
                               password: this.password,
@@ -128,22 +133,21 @@ function Xiaomi(user, pwd, step) {
                               region: 'us-west-2',
                               token: 'access',
                               country_code: 'CN'
-                          }
-                ),
+                          },
                 'auto-redirect': false, // Loon 是否自动处理重定向，默认true（build 660+）,Surge (5.21.0(3052))
                 followRedirect: false, // NodeJS禁止重定向
                 opts: {
                     redirection: false // 圈X禁止重定向
-                }
+                },
+                responseType: 'response'
             }
-            var resp = await service.post(options)
-            var { statusCode, headers } = resp
+            const { statusCode, headers } = await fetchData(options)
             if (statusCode >= 300 && statusCode < 400) {
-                var location = $.isNode() ? headers['location'] : headers['Location']
-                is_debug && console.log('获取重定向链接')
-                is_debug && console.log(location)
-                if (!/access/.test(location)) throw new Error('获取登录信息失败')
-                var { access } = qs.parse(location)
+                const loc = $.isNode() ? headers['location'] : headers['Location']
+                is_debug && $.log('获取重定向链接')
+                is_debug && $.log($.toStr($.qs.parse(loc)))
+                if (!/access/.test(loc)) throw new Error('获取登录信息失败')
+                const { access } = $.qs.parse(loc)
                 return access
             } else {
                 throw new Error('获取登录信息失败')
@@ -151,13 +155,13 @@ function Xiaomi(user, pwd, step) {
         }
         // 登录 -- success
         async doLogin(code) {
-            var options = {
+            const options = {
                 url: 'https://account.huami.com/v2/client/login',
+                type: 'post',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
                     'User-Agent': 'MiFit/4.6.0 (iPhone; iOS 14.0.1; Scale/2.00)'
                 },
-                body: qs.stringify({
+                body: {
                     app_name: 'com.xiaomi.hm.health',
                     app_version: '4.6.0',
                     code,
@@ -165,27 +169,33 @@ function Xiaomi(user, pwd, step) {
                     device_id: '2C8B4939-0CCD-4E94-8CBA-CB8EA6E613A1',
                     device_model: 'phone',
                     grant_type: 'access_token',
-                    third_name: 'huami_phone'
-                })
+                    third_name: this.userType === 'phone' ? 'huami_phone' : 'email'
+                }
             }
-            var { body: resp } = await service.post(options)
-            is_debug && console.log('获取登录参数')
-            is_debug && console.log(JSON.stringify(resp))
-            var {
-                token_info: { login_token: loginToken, user_id: userId }
-            } = JSON.parse(resp)
-            return { loginToken, userId }
+            try {
+                const data = await fetchData(options)
+                is_debug && $.log('获取登录参数')
+                is_debug && $.log($.toStr(data))
+                const {
+                    token_info: { login_token: loginToken, user_id: userId }
+                } = data
+                return { loginToken, userId }
+            } catch (e) {
+                throw new Error('获取登录参数失败', e)
+            }
         }
         // 获取appToken -- success
         async getAppToken(token) {
             var options = {
                 url: `https://account-cn.huami.com/v1/client/app_tokens?app_name=com.xiaomi.hm.health&dn=api-user.huami.com%2Capi-mifit.huami.com%2Capp-analytics.huami.com&login_token=${token}&os_version=4.1.0`,
-                headers: this.headers
+                headers: {
+                    'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 9; MI 6 MIUI/20.6.18)'
+                }
             }
-            var { body: resp } = await service.get(options)
-            is_debug && console.log('获取appToken参数')
-            is_debug && console.log(JSON.stringify(resp))
-            var { result, token_info } = JSON.parse(resp)
+            const data = await fetchData(options)
+            is_debug && $.log('获取appToken参数')
+            is_debug && $.log($.toStr(data))
+            const { result, token_info } = data
             if (result === 'ok') {
                 var { app_token: appToken } = token_info
                 return appToken
@@ -195,92 +205,46 @@ function Xiaomi(user, pwd, step) {
         }
         // 刷步 -- success
         async doStep(appToken, userId) {
-            var _ts = await this.getTimeByTaobao()
-            var dataJson = JSON.parse(qs.unescape(__json()))[0]
-            var today = $.time('yyyy-MM-dd')
+            const _ts = await this.getTimeByTaobao()
+            const today = $.time('yyyy-MM-dd')
+            let dataJson = $.toObj($.qs.unescape(__json()))[0]
             dataJson.date = today
             // prettier-ignore
             dataJson.summary = dataJson.summary.replace(/ttl\":(.*?),\"dis/, `ttl\":${this.step},\"dis`)
-            var dataStr = qs.escape(JSON.stringify([dataJson]))
-            var options = {
+            const dataStr = $.qs.escape($.toStr([dataJson]))
+            const options = {
                 url: `https://api-mifit-cn.huami.com/v1/data/band_data.json?&t=${_ts}`,
+                type: 'post',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
                     apptoken: appToken
                 },
-                body: qs.stringify({
+                body: {
                     userid: userId,
                     last_sync_data_time: 1597306380,
                     device_type: 0,
                     last_deviceid: 'DA932FFFFE8816E7',
                     data_json: dataStr
-                })
+                }
             }
-            var { body: resp } = await service.post(options)
-            is_debug && console.log('刷步结果')
-            is_debug && console.log(JSON.stringify(resp))
-            var { code, message } = JSON.parse(resp)
-            if (code == 1) {
-                return true
-            } else {
-                throw new Error(message)
+            try {
+                const { code, message } = await fetchData(options)
+                is_debug && $.log('刷步结果')
+                is_debug && $.log($.toStr({ code, message }))
+                if (code == 1) {
+                    return true
+                } else {
+                    throw new Error(message)
+                }
+            } catch (e) {
+                throw new Error('刷步失败', e)
             }
         }
     })(user, pwd)
 }
-/**
- * 通用通知
- * 兼容Node.js/Quantumult X/Surge/Loon/Shadowrocket
- * @param {*} title 标题
- * @param {*} subtitle 副标题
- * @param {*} content 内容
- * @param {*} options 附加参数
- */
-async function SendNotify(title, subtitle = '', content = '', options = {}) {
-    // --------------------------------------------------
-    const isJSBox = typeof $app !== 'undefined' && typeof $http !== 'undefined'
-    // --------------------------------------------------
-    const openURL = options['open-url']
-    const mediaURL = options['media-url']
-
-    if ($.isQuanX()) {
-        $notify(title, subtitle, content, options)
-    }
-    if ($.isSurge()) {
-        const contentWithMedia = mediaURL ? `${content}\n多媒体:${mediaURL}` : content
-        $notification.post(title, subtitle, contentWithMedia, { url: openURL })
-    }
-    if ($.isLoon()) {
-        const opts = {}
-        if (openURL) opts['openUrl'] = openURL
-        if (mediaURL) opts['mediaUrl'] = mediaURL
-        if (JSON.stringify(opts) === '{}') {
-            $notification.post(title, subtitle, content)
-        } else {
-            $notification.post(title, subtitle, content, opts)
-        }
-    }
-    const content_ = `${content}${openURL ? `\n点击跳转: ${openURL}` : ''}${mediaURL ? `\n多媒体: ${mediaURL}` : ''}`
-    if (isJSBox) {
-        const push = require('push')
-        push.schedule({
-            title,
-            body: `${subtitle ? `${subtitle}\n` : ''}${content_}`
-        })
-    }
-    if ($.isNode()) {
-        try {
-            // 请注意, 这里需要配置你自己的sendNotify.js文件位置
-            const notify = require('./sendNotify')
-            await notify.sendNotify(`${title}\n${subtitle}`, content_)
-        } catch (e) {
-            console.log('没有找到sendNotify.js文件')
-        }
-    }
-    console.log(`${title}\n${subtitle}\n${content_}\n\n`)
-}
 // prettier-ignore
-function querystring(){return new class{constructor(){}parse(ele,con_1,con_2){con_1=con_1||"&",con_2=con_2||"=";for(var temp=ele.split(con_1),obj={},n=temp.length,i=0;i<n;i++){var tempKey=temp[i].split(con_2);obj[tempKey[0]]=tempKey[1]}return obj}stringify(ele,con_1,con_2){con_1=con_1||"&",con_2=con_2||"=";var str="";for(var key in ele)str+=key+con_2+ele[key]+con_1;return str=str.substr(0,str.length-1)}escape(str){return encodeURIComponent(str)}unescape(str){return decodeURIComponent(str)}}}
+async function fetchData(e){if("string"==typeof e&&(e={url:e}),!e?.url)throw new Error("[发送请求] 缺少 url 参数");try{const{url:t,type:o,headers:r,body:s,params:i,dataType:a="form",deviceType:n="mobile",responseType:p="data"}=e,c=o?o.toLowerCase():"get",l=t.concat("post"===c?"?"+$.qs.stringify(i):""),u=ObjectKeys2LowerCase(r||{});u?.["user-agent"]||Object.assign(u,{"user-agent":"pc"===n?"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36 Edge/16.16299":"Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"}),"json"===a&&Object.assign(u,{"content-type":"application/json;charset=UTF-8"});const y=e?.timeout?$.isSurge()?e.timeout/1e3:e.timeout:5e3,m="post"===c&&s&&(("json"===e.dataType?$.toStr:$.qs.stringify)("object"==typeof s?s:"")||s),b={...e,...e?.ops?e.opts:{},url:l,headers:u,..."post"===c&&{body:m},..."get"===c&&i&&{params:i},timeout:y},g=new Promise(((e,t)=>{$[c](b,((o,r,s)=>{o?t(o):e("response"===p?r:$.toObj(s)||s)}))}));return $.isQuanX()?await Promise.race([new Promise(((e,t)=>setTimeout((()=>t(new Error("网络开小差了~"))),y))),g]):g}catch(e){throw new Error(e)}}
+// prettier-ignore
+async function SendNotify(n,o="",i="",t={}){const e="undefined"!=typeof $app&&"undefined"!=typeof $http,s=t["open-url"],f=t["media-url"];if($.isQuanX()&&$notify(n,o,i,t),$.isSurge()){const t=f?`${i}\n多媒体:${f}`:i;$notification.post(n,o,t,{url:s})}if($.isLoon()){const t={};s&&(t.openUrl=s),f&&(t.mediaUrl=f),"{}"===JSON.stringify(t)?$notification.post(n,o,i):$notification.post(n,o,i,t)}const c=`${i}${s?`\n点击跳转: ${s}`:""}${f?`\n多媒体: ${f}`:""}`;if(e){require("push").schedule({title:n,body:`${o?`${o}\n`:""}${c}`})}if($.isNode())try{const i=require("./sendNotify");await i.sendNotify(`${n}\n${o}`,c)}catch(n){console.log("没有找到sendNotify.js文件")}console.log(`${n}\n${o}\n${c}\n\n`)}
 // prettier-ignore
 function __json(){return '%5B%7B%22data_hr%22%3A%22%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F9L%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2FVv%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F0v%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F9e%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F0n%5C%2Fa%5C%2F%5C%2F%5C%2FS%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F0b%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F1FK%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2FR%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F9PTFFpaf9L%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2FR%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F0j%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F9K%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2FOv%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2Fzf%5C%2F%5C%2F%5C%2F86%5C%2Fzr%5C%2FOv88%5C%2Fzf%5C%2FPf%5C%2F%5C%2F%5C%2F0v%5C%2FS%5C%2F8%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2FSf%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2Fz3%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F0r%5C%2FOv%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2FS%5C%2F9L%5C%2Fzb%5C%2FSf9K%5C%2F0v%5C%2FRf9H%5C%2Fzj%5C%2FSf9K%5C%2F0%5C%2F%5C%2FN%5C%2F%5C%2F%5C%2F%5C%2F0D%5C%2FSf83%5C%2Fzr%5C%2FPf9M%5C%2F0v%5C%2FOv9e%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2FS%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2Fzv%5C%2F%5C%2Fz7%5C%2FO%5C%2F83%5C%2Fzv%5C%2FN%5C%2F83%5C%2Fzr%5C%2FN%5C%2F86%5C%2Fz%5C%2F%5C%2FNv83%5C%2Fzn%5C%2FXv84%5C%2Fzr%5C%2FPP84%5C%2Fzj%5C%2FN%5C%2F9e%5C%2Fzr%5C%2FN%5C%2F89%5C%2F03%5C%2FP%5C%2F89%5C%2Fz3%5C%2FQ%5C%2F9N%5C%2F0v%5C%2FTv9C%5C%2F0H%5C%2FOf9D%5C%2Fzz%5C%2FOf88%5C%2Fz%5C%2F%5C%2FPP9A%5C%2Fzr%5C%2FN%5C%2F86%5C%2Fzz%5C%2FNv87%5C%2F0D%5C%2FOv84%5C%2F0v%5C%2FO%5C%2F84%5C%2Fzf%5C%2FMP83%5C%2FzH%5C%2FNv83%5C%2Fzf%5C%2FN%5C%2F84%5C%2Fzf%5C%2FOf82%5C%2Fzf%5C%2FOP83%5C%2Fzb%5C%2FMv81%5C%2FzX%5C%2FR%5C%2F9L%5C%2F0v%5C%2FO%5C%2F9I%5C%2F0T%5C%2FS%5C%2F9A%5C%2Fzn%5C%2FPf89%5C%2Fzn%5C%2FNf9K%5C%2F07%5C%2FN%5C%2F83%5C%2Fzn%5C%2FNv83%5C%2Fzv%5C%2FO%5C%2F9A%5C%2F0H%5C%2FOf8%5C%2F%5C%2Fzj%5C%2FPP83%5C%2Fzj%5C%2FS%5C%2F87%5C%2Fzj%5C%2FNv84%5C%2Fzf%5C%2FOf83%5C%2Fzf%5C%2FOf83%5C%2Fzb%5C%2FNv9L%5C%2Fzj%5C%2FNv82%5C%2Fzb%5C%2FN%5C%2F85%5C%2Fzf%5C%2FN%5C%2F9J%5C%2Fzf%5C%2FNv83%5C%2Fzj%5C%2FNv84%5C%2F0r%5C%2FSv83%5C%2Fzf%5C%2FMP%5C%2F%5C%2F%5C%2Fzb%5C%2FMv82%5C%2Fzb%5C%2FOf85%5C%2Fz7%5C%2FNv8%5C%2F%5C%2F0r%5C%2FS%5C%2F85%5C%2F0H%5C%2FQP9B%5C%2F0D%5C%2FNf89%5C%2Fzj%5C%2FOv83%5C%2Fzv%5C%2FNv8%5C%2F%5C%2F0f%5C%2FSv9O%5C%2F0ZeXv%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F1X%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F9B%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2FTP%5C%2F%5C%2F%5C%2F1b%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F0%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F9N%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2F%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%5C%2Fv7%2B%22%2C%22date%22%3A%222021-08-07%22%2C%22data%22%3A%5B%7B%22start%22%3A0%2C%22stop%22%3A1439%2C%22value%22%3A%22UA8AUBQAUAwAUBoAUAEAYCcAUBkAUB4AUBgAUCAAUAEAUBkAUAwAYAsAYB8AYB0AYBgAYCoAYBgAYB4AUCcAUBsAUB8AUBwAUBIAYBkAYB8AUBoAUBMAUCEAUCIAYBYAUBwAUCAAUBgAUCAAUBcAYBsAYCUAATIPYD0KECQAYDMAYB0AYAsAYCAAYDwAYCIAYB0AYBcAYCQAYB0AYBAAYCMAYAoAYCIAYCEAYCYAYBsAYBUAYAYAYCIAYCMAUB0AUCAAUBYAUCoAUBEAUC8AUB0AUBYAUDMAUDoAUBkAUC0AUBQAUBwAUA0AUBsAUAoAUCEAUBYAUAwAUB4AUAwAUCcAUCYAUCwKYDUAAUUlEC8IYEMAYEgAYDoAYBAAUAMAUBkAWgAAWgAAWgAAWgAAWgAAUAgAWgAAUBAAUAQAUA4AUA8AUAkAUAIAUAYAUAcAUAIAWgAAUAQAUAkAUAEAUBkAUCUAWgAAUAYAUBEAWgAAUBYAWgAAUAYAWgAAWgAAWgAAWgAAUBcAUAcAWgAAUBUAUAoAUAIAWgAAUAQAUAYAUCgAWgAAUAgAWgAAWgAAUAwAWwAAXCMAUBQAWwAAUAIAWgAAWgAAWgAAWgAAWgAAWgAAWgAAWgAAWREAWQIAUAMAWSEAUDoAUDIAUB8AUCEAUC4AXB4AUA4AWgAAUBIAUA8AUBAAUCUAUCIAUAMAUAEAUAsAUAMAUCwAUBYAWgAAWgAAWgAAWgAAWgAAWgAAUAYAWgAAWgAAWgAAUAYAWwAAWgAAUAYAXAQAUAMAUBsAUBcAUCAAWwAAWgAAWgAAWgAAWgAAUBgAUB4AWgAAUAcAUAwAWQIAWQkAUAEAUAIAWgAAUAoAWgAAUAYAUB0AWgAAWgAAUAkAWgAAWSwAUBIAWgAAUC4AWSYAWgAAUAYAUAoAUAkAUAIAUAcAWgAAUAEAUBEAUBgAUBcAWRYAUA0AWSgAUB4AUDQAUBoAXA4AUA8AUBwAUA8AUA4AUA4AWgAAUAIAUCMAWgAAUCwAUBgAUAYAUAAAUAAAUAAAUAAAUAAAUAAAUAAAUAAAUAAAWwAAUAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAeSEAeQ8AcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcBcAcAAAcAAAcCYOcBUAUAAAUAAAUAAAUAAAUAUAUAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcCgAeQAAcAAAcAAAcAAAcAAAcAAAcAYAcAAAcBgAeQAAcAAAcAAAegAAegAAcAAAcAcAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcCkAeQAAcAcAcAAAcAAAcAwAcAAAcAAAcAIAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcCIAeQAAcAAAcAAAcAAAcAAAcAAAeRwAeQAAWgAAUAAAUAAAUAAAUAAAUAAAcAAAcAAAcBoAeScAeQAAegAAcBkAeQAAUAAAUAAAUAAAUAAAUAAAUAAAcAAAcAAAcAAAcAAAcAAAcAAAegAAegAAcAAAcAAAcBgAeQAAcAAAcAAAcAAAcAAAcAAAcAkAegAAegAAcAcAcAAAcAcAcAAAcAAAcAAAcAAAcA8AeQAAcAAAcAAAeRQAcAwAUAAAUAAAUAAAUAAAUAAAUAAAcAAAcBEAcA0AcAAAWQsAUAAAUAAAUAAAUAAAUAAAcAAAcAoAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAYAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcBYAegAAcAAAcAAAegAAcAcAcAAAcAAAcAAAcAAAcAAAeRkAegAAegAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAEAcAAAcAAAcAAAcAUAcAQAcAAAcBIAeQAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcBsAcAAAcAAAcBcAeQAAUAAAUAAAUAAAUAAAUAAAUBQAcBYAUAAAUAAAUAoAWRYAWTQAWQAAUAAAUAAAUAAAcAAAcAAAcAAAcAAAcAAAcAMAcAAAcAQAcAAAcAAAcAAAcDMAeSIAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcAAAcBQAeQwAcAAAcAAAcAAAcAMAcAAAeSoAcA8AcDMAcAYAeQoAcAwAcFQAcEMAeVIAaTYAbBcNYAsAYBIAYAIAYAIAYBUAYCwAYBMAYDYAYCkAYDcAUCoAUCcAUAUAUBAAWgAAYBoAYBcAYCgAUAMAUAYAUBYAUA4AUBgAUAgAUAgAUAsAUAsAUA4AUAMAUAYAUAQAUBIAASsSUDAAUDAAUBAAYAYAUBAAUAUAUCAAUBoAUCAAUBAAUAoAYAIAUAQAUAgAUCcAUAsAUCIAUCUAUAoAUA4AUB8AUBkAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAAfgAA%22%2C%22tz%22%3A32%2C%22did%22%3A%22DA932FFFFE8816E7%22%2C%22src%22%3A24%7D%5D%2C%22summary%22%3A%22%7B%5C%22v%5C%22%3A6%2C%5C%22slp%5C%22%3A%7B%5C%22st%5C%22%3A1628296479%2C%5C%22ed%5C%22%3A1628296479%2C%5C%22dp%5C%22%3A0%2C%5C%22lt%5C%22%3A0%2C%5C%22wk%5C%22%3A0%2C%5C%22usrSt%5C%22%3A-1440%2C%5C%22usrEd%5C%22%3A-1440%2C%5C%22wc%5C%22%3A0%2C%5C%22is%5C%22%3A0%2C%5C%22lb%5C%22%3A0%2C%5C%22to%5C%22%3A0%2C%5C%22dt%5C%22%3A0%2C%5C%22rhr%5C%22%3A0%2C%5C%22ss%5C%22%3A0%7D%2C%5C%22stp%5C%22%3A%7B%5C%22ttl%5C%22%3A18272%2C%5C%22dis%5C%22%3A10627%2C%5C%22cal%5C%22%3A510%2C%5C%22wk%5C%22%3A41%2C%5C%22rn%5C%22%3A50%2C%5C%22runDist%5C%22%3A7654%2C%5C%22runCal%5C%22%3A397%2C%5C%22stage%5C%22%3A%5B%7B%5C%22start%5C%22%3A327%2C%5C%22stop%5C%22%3A341%2C%5C%22mode%5C%22%3A1%2C%5C%22dis%5C%22%3A481%2C%5C%22cal%5C%22%3A13%2C%5C%22step%5C%22%3A680%7D%2C%7B%5C%22start%5C%22%3A342%2C%5C%22stop%5C%22%3A367%2C%5C%22mode%5C%22%3A3%2C%5C%22dis%5C%22%3A2295%2C%5C%22cal%5C%22%3A95%2C%5C%22step%5C%22%3A2874%7D%2C%7B%5C%22start%5C%22%3A368%2C%5C%22stop%5C%22%3A377%2C%5C%22mode%5C%22%3A4%2C%5C%22dis%5C%22%3A1592%2C%5C%22cal%5C%22%3A88%2C%5C%22step%5C%22%3A1664%7D%2C%7B%5C%22start%5C%22%3A378%2C%5C%22stop%5C%22%3A386%2C%5C%22mode%5C%22%3A3%2C%5C%22dis%5C%22%3A1072%2C%5C%22cal%5C%22%3A51%2C%5C%22step%5C%22%3A1245%7D%2C%7B%5C%22start%5C%22%3A387%2C%5C%22stop%5C%22%3A393%2C%5C%22mode%5C%22%3A4%2C%5C%22dis%5C%22%3A1036%2C%5C%22cal%5C%22%3A57%2C%5C%22step%5C%22%3A1124%7D%2C%7B%5C%22start%5C%22%3A394%2C%5C%22stop%5C%22%3A398%2C%5C%22mode%5C%22%3A3%2C%5C%22dis%5C%22%3A488%2C%5C%22cal%5C%22%3A19%2C%5C%22step%5C%22%3A607%7D%2C%7B%5C%22start%5C%22%3A399%2C%5C%22stop%5C%22%3A414%2C%5C%22mode%5C%22%3A4%2C%5C%22dis%5C%22%3A2220%2C%5C%22cal%5C%22%3A120%2C%5C%22step%5C%22%3A2371%7D%2C%7B%5C%22start%5C%22%3A415%2C%5C%22stop%5C%22%3A427%2C%5C%22mode%5C%22%3A3%2C%5C%22dis%5C%22%3A1268%2C%5C%22cal%5C%22%3A59%2C%5C%22step%5C%22%3A1489%7D%2C%7B%5C%22start%5C%22%3A428%2C%5C%22stop%5C%22%3A433%2C%5C%22mode%5C%22%3A1%2C%5C%22dis%5C%22%3A152%2C%5C%22cal%5C%22%3A4%2C%5C%22step%5C%22%3A238%7D%2C%7B%5C%22start%5C%22%3A434%2C%5C%22stop%5C%22%3A444%2C%5C%22mode%5C%22%3A3%2C%5C%22dis%5C%22%3A2295%2C%5C%22cal%5C%22%3A95%2C%5C%22step%5C%22%3A2874%7D%2C%7B%5C%22start%5C%22%3A445%2C%5C%22stop%5C%22%3A455%2C%5C%22mode%5C%22%3A4%2C%5C%22dis%5C%22%3A1592%2C%5C%22cal%5C%22%3A88%2C%5C%22step%5C%22%3A1664%7D%2C%7B%5C%22start%5C%22%3A456%2C%5C%22stop%5C%22%3A466%2C%5C%22mode%5C%22%3A3%2C%5C%22dis%5C%22%3A1072%2C%5C%22cal%5C%22%3A51%2C%5C%22step%5C%22%3A1245%7D%2C%7B%5C%22start%5C%22%3A467%2C%5C%22stop%5C%22%3A477%2C%5C%22mode%5C%22%3A4%2C%5C%22dis%5C%22%3A1036%2C%5C%22cal%5C%22%3A57%2C%5C%22step%5C%22%3A1124%7D%2C%7B%5C%22start%5C%22%3A478%2C%5C%22stop%5C%22%3A488%2C%5C%22mode%5C%22%3A3%2C%5C%22dis%5C%22%3A488%2C%5C%22cal%5C%22%3A19%2C%5C%22step%5C%22%3A607%7D%2C%7B%5C%22start%5C%22%3A489%2C%5C%22stop%5C%22%3A499%2C%5C%22mode%5C%22%3A4%2C%5C%22dis%5C%22%3A2220%2C%5C%22cal%5C%22%3A120%2C%5C%22step%5C%22%3A2371%7D%2C%7B%5C%22start%5C%22%3A500%2C%5C%22stop%5C%22%3A511%2C%5C%22mode%5C%22%3A3%2C%5C%22dis%5C%22%3A1268%2C%5C%22cal%5C%22%3A59%2C%5C%22step%5C%22%3A1489%7D%2C%7B%5C%22start%5C%22%3A512%2C%5C%22stop%5C%22%3A522%2C%5C%22mode%5C%22%3A1%2C%5C%22dis%5C%22%3A152%2C%5C%22cal%5C%22%3A4%2C%5C%22step%5C%22%3A238%7D%5D%7D%2C%5C%22goal%5C%22%3A8000%2C%5C%22tz%5C%22%3A%5C%2228800%5C%22%7D%22%2C%22source%22%3A24%2C%22type%22%3A0%7D%5D'}
 // prettier-ignore
