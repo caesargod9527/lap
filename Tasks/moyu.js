@@ -49,7 +49,7 @@ cron "6 9 * * *" script-path=https://raw.githubusercontent.com/Yuheng0101/X/main
 摸鱼来啦 = type=cron,cronexp=6 9 * * *,wake-system=1,script-path=https://raw.githubusercontent.com/Yuheng0101/X/main/Tasks/moyu.js, timeout=60
 ```
 ******************************************/
-const $ = new Env('摸鱼来啦')
+const $ = new Env('摸鱼来啦~')
 // ----------------------------------
 // 模块依赖
 $.isTrue = (val) => val === 'true' || val === true
@@ -148,29 +148,35 @@ const festivalList = $.FESTIVAL_CONF.split('&')
             let [name, date] = it.split(':')
             const hasLunar = date.includes('$农历')
             const hasSolar = date.includes('$阳历')
-            if (hasLunar) {
-                // 判断是否存在$阳历，存在则返回阳历日期
-                if (hasSolar) {
-                    const reg = /\$(农历|阳历)\$(农历|阳历)/
-                    date = getDateStr(date.replace(reg, ''), Year)
-                } else {
-                    // 不存在$阳历，则返回农历日期
-                    date = getDateStr(date.replace('$农历', ''), Year)
-                }
-                const [y, m, d] = date.split('/').map(Number)
-                const lunar = Lunar2Solar(y, m, d)
-                const diff = getDiffDays(lunar)
-                return { name, date: lunar, diff }
-            } else {
-                // 不存在$农历或者存在$阳历，则返回阳历日期
+            // 不包含默认农历阳历都输出
+            if ((!hasLunar && !hasSolar) || (hasSolar && !hasLunar)) {
                 date = getDateStr(date.replace('$阳历', ''), Year)
                 const [y, m, d] = date.split('/').map(Number)
                 return { name, date, lunar: Lunar2Solar(y, m, d), diff: getDiffDays(date) }
             }
+            // 只包含农历的只输出农历
+            if (hasLunar && !hasSolar) {
+                date = getDateStr(date.replace('$农历', ''), Year)
+                const [y, m, d] = date.split('/').map(Number)
+                const lunar = Lunar2Solar(y, m, d)
+                const diff = getDiffDays(lunar)
+                return { name, date: lunar, diff }
+            }
+            // 两者都包含的, 先判断哪个在前, 传入的日期为哪个，如果传入的是阳历, 则都输出, 如果传入的是农历, 则只输出农历
+            if (hasLunar && hasSolar) {
+                const reg = /\$(农历|阳历)\$(农历|阳历)/
+                const isSolar = date.match(reg)[1] === '阳历'
+                date = getDateStr(date.replace(reg, ''), Year)
+                const [y, m, d] = date.split('/').map(Number)
+                const lunar = Lunar2Solar(y, m, d)
+                return { name, date: isSolar ? date : lunar, lunar, diff: getDiffDays(isSolar ? date : lunar) }
+            }
         }
     })
+
     .filter((it) => it.diff >= 0)
     .sort((a, b) => a.diff - b.diff)
+
 // ----------------------------------
 /**
  * 每日一言
