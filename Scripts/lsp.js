@@ -3,7 +3,7 @@
  * @description 好男人专用脚本
  * @channel https://t.me/yqc_123
  * @feedback https://t.me/yqc_777
- * @version 2.0.1
+ * @version 2.0.11
 ******************************************
 
 ## 脚本注明
